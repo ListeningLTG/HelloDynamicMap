@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>DynamicMap</title>
+	<link rel="stylesheet" href="https://js.arcgis.com/3.28/esri/css/esri.css">
+	<script src="https://js.arcgis.com/3.28/"></script>
+	<script src="jsapi_vsdoc12_v38/jsapi_vsdoc12_v38.js"></script>
+	<style>
+		
+	</style>
+	<script type="text/javascript">
+		require(["esri/map","dojo/on","dojo/query","dojo/dom","esri/layers/ArcGISDynamicMapServiceLayer",
+				"esri/tasks/FindTask",
+				"esri/tasks/FindParameters",
+				"esri/tasks/QueryTask",
+				"esri/tasks/query",
+				"esri/symbols/SimpleMarkerSymbol",
+				"esri/symbols/SimpleLineSymbol",
+				"esri/symbols/SimpleFillSymbol",
+				"esri/geometry/Point",
+				"esri/geometry/Polyline",
+				"esri/geometry/Polygon",
+				"esri/geometry/Circle",
+				"esri/Color",
+				"esri/graphic",
+				"esri/layers/GraphicsLayer",
+				"esri/toolbars/navigation",
+				"esri/dijit/OverviewMap",
+				"esri/toolbars/draw",
+				"dojo/domReady!"],
+				function (Map, on, query, dom, ArcGISDynamicMapServiceLayer, FindTask, FindParameters, QueryTask, Query, SimpleMarkerSymbol, SimpleLineSymbol, SimpleFillSymbol,Point,Polyline,Polygon,Circle, Color, Graphic, GraphicsLayer, Navigation, OverviewMap,Draw) {
+					var map = new Map("mapDiv", {
+						logo:false
+					})
+					var layer=new ArcGISDynamicMapServiceLayer("http://localhost:6080/arcgis/rest/services/Test/MyService/MapServer")
+					map.addLayer(layer);
+                    
+					var mapC = map.on("click", mapClick);
+					var navToolbar = new Navigation(map);
+					var graphicsLayer = new GraphicsLayer();
+					map.addLayer(graphicsLayer);
+					var btns=query("button")
+					var toolbar = new Draw(map, { showTooltips: true });
+
+					//定义线符号
+					var lineSymbol = new SimpleLineSymbol(SimpleLineSymbol.STYLE_DASH, new Color([255, 0, 0]), 3);
+					//定义点符号l
+					var pSymbol = new SimpleMarkerSymbol(SimpleMarkerSymbol.STYLE_CIRCLE, 5, lineSymbol, new Color([255, 0, 0]));
+					//定义面符号
+					var fill = SimpleFillSymbol(SimpleFillSymbol.STYLE_SOLID, lineSymbol, new Color([255, 0, 0]));
+
+					on(dom.byId("btn2"),"click",function () {
+						layer.setVisibleLayers([1,2,3]);
+					}) 
+
+					var overviewMapDijit = new OverviewMap({
+						attachTo: "bottom-right",
+						map: map,
+						visible:true
+					})
+					overviewMapDijit.startup();
+					
+					function mapClick(e) {
+						var point = e.mapPoint;
+						query2 = new Query();
+						query2.geometry = point;
+						query2.outFields = ["*"];
+						query2.outSpatialReference = map.spatialReference
+						query2.spatialRelationship = Query.SPATIAL_REL_INTERSECTS
+						query2.returnGeometry = true;
+						var queryTask = new QueryTask("http://localhost:6080/arcgis/rest/services/Test/MyService/MapServer/2")
+						queryTask.execute(query2,ShowFindResultmapClick)
+					}
+					function ShowFindResultmapClick(queryResult) {
+						if (queryResult.features == 0) {
+							alert("没有该元素");
+							return;
+						}
+						for (var i = 0; i < queryResult.features.length; i++) {
+							var feature = queryResult.features[i];
+							var geometry = feature.geometry;
+							var outline = new SimpleLineSymbol(SimpleLineSymbol.STYLE_DASHDOT, new Color([255, 0, 0]), 1);
+							var PolygonSymbol = new SimpleFillSymbol(SimpleFillSymbol.STYLE_SOLID, outline, new Color([0, 255, 0, 1]))
+							var graphic = new Graphic(geometry, PolygonSymbol)
+							map.graphics.add(graphic)
+						}
+					}
+					query("#btn").on("click",function () {
+						var name=query(".nm")[0].value;
+						var findParams=new esri.tasks.FindParameters();
+						findParams.returnGeometry=true;
+						findParams.layerIds=[2]
+						findParams.searchFields=["name"]
+						findParams.searchText=name;
+						var FindTask=new esri.tasks.FindTask("http://localhost:6080/arcgis/rest/services/Test/MyService/MapServer")
+						FindTask.execute(findParams,ShowFindResult)
+					})
+					function ShowFindResult(queryResult) {
+						if (queryResult.length==0) {
+							alert("没有该元素");
+							return;
+						}
+						for (var i = 0; i < queryResult.length; i++) {
+							var feature=queryResult[i].feature;
+							var geometry=feature.geometry;
+							var outline=new SimpleLineSymbol(SimpleLineSymbol.STYLE_DASHDOT,new Color([255,0,0]),1);
+							var PolygonSymbol=new SimpleFillSymbol(SimpleFillSymbol.STYLE_SOLID,outline,new Color([0,255,0,1]))
+							var graphic=new Graphic(geometry,PolygonSymbol)
+							map.graphics.add(graphic)
+							
+						}
+					}
+					query("button").on("click", function (event) {
+						var vaule = this.innerHTML;
+						switch (vaule) {
+							case "平移":
+								navToolbar.activate(Navigation.PAN);
+								break;
+							case "拉框放大":
+								navToolbar.activate(Navigation.ZOOM_IN);
+								break;
+							case "拉框缩小":
+								navToolbar.activate(Navigation.ZOOM_OUT);
+								break;
+							case "全图":
+								navToolbar.zoomToFullExtent();
+								break;
+							case "漫游":
+								navToolbar.deactivate();
+								break;
+						}
+					})
+					on(btns, "click", function (event) {
+						var text = this.innerHTML;
+						var geometry;
+						var graphic;
+						switch (text) {
+							case "添加点":
+								geometry = new Point({
+									"x": 510706,
+									"y": 3986100,
+									"spatialReference": map.spatialReference
+								})
+								var attributes = {
+									"h": 50
+								}
+								graphic = new Graphic(geometry, pSymbol, attributes);
+								break;
+							case "添加线":
+								var paths = [];
+								paths[0] = [
+								  [510326, 3985702],
+								  [510994, 3985676],
+								  [511078, 3985903],
+								  [510433, 3985928]
+								];
+								geometry = new Polyline({
+									"paths": paths,
+									"spatialReference":map.spatialReference
+								})
+								graphic = new Graphic(geometry, lineSymbol);
+								break;
+							case "添加面":
+								var ring = [];
+								ring[0] = [
+									[510275, 3986100],
+									[510508, 3986162],
+									[510596, 3986032],
+									[510271, 3985847],
+									[510275, 3986100]
+								];
+								var attributes = {
+									"h": 200
+								}
+								geometry = new Polygon({
+									"rings": ring,
+									"spatialReference": map.spatialReference
+								});
+								graphic = new Graphic(geometry, fill, attributes);
+								break;
+							case "添加圆":
+								var p = new Point({
+									"x": 510856,
+									"y": 3986100,
+									"spatialReference": map.spatialReference
+								});
+								var r = 20;
+								var attributes={
+									"h": 100
+								}
+								geometry = new Circle(p,
+									{
+										"radius": r
+									});
+								graphic = new Graphic(geometry, fill, attributes);
+								break;
+						}
+						if (graphic!=undefined) {
+							graphicsLayer.add(graphic)
+						}
+						
+					})
+					on(graphicsLayer,"click",function (event) {
+						var gra = event.graphic;
+						alert(gra.attributes["h"]);
+						event.stopPropagation();
+					})
+					query(btns).on("click", function (event) {
+						mapC.remove();
+						var value = this.innerHTML;
+						switch (value) {
+							case "绘制点":{
+								toolbar.activate(Draw.POINT, { showTooltips: true })
+								event.stopPropagation();
+								break;
+							}
+							case "绘制折线":{
+								toolbar.activate(Draw.POLYLINE, { showTooltips: true })
+								break;
+							}
+							case "绘制面":{
+								toolbar.activate(Draw.POLYGON, { showTooltips: true })
+								break;
+							}
+							case "徒手线":{
+								toolbar.activate(Draw.FREEHAND_POLYLINE, { showTooltips: true })
+								break;
+							}
+							case "徒手面":{
+								toolbar.activate(Draw.FREEHAND_POLYGON, { showTooltips: true })
+								break;
+							}
+						}
+					})
+					on(toolbar, "draw-complete", function (result) {
+						var geometry = result.geometry;
+						var type =geometry.type;
+						var graphic;
+						switch (type) {
+							case "point":
+								graphic = new Graphic(geometry, pSymbol);
+								break;
+							case "polyline":
+								graphic = new Graphic(geometry, lineSymbol);
+								event.stopPropagation();
+								break;
+							case "polygon":
+								graphic = new Graphic(geometry, fill);
+								break;
+						}
+						map.graphics.add(graphic);
+						toolbar.deactivate();
+                        console.log(mapC)
+						mapC = map.on("click", mapClick);
+					})
+				}
+		)
+	</script>
+</head>
+<body class="tundra">
+	<div style="margin-bottom:10px;">
+	<button>平移</button>
+	<button>拉框放大</button>
+	<button>拉框缩小</button>
+	<button>全图</button>
+	<button>漫游</button>
+	<span style="margin-left:15px">Name<input type="text" class="nm">
+	<input type="button" value="查询" id="btn">
+		<input type="button" id="btn2" value="隐藏road" />
+	</span>
+	<span>
+		<button>添加点</button>
+		<button>添加线</button>
+		<button>添加面</button>
+		<button>添加圆</button>
+		<button>绘制点</button>
+		<button>绘制折线</button>
+		<button>绘制面</button>
+		<button>徒手线</button>
+		<button>徒手面</button>
+	</span>
+	</div>
+	<div id="mapDiv" style="width:1000px; height:550px; border:1px solid #000;"></div>
+</body>
+</html>
